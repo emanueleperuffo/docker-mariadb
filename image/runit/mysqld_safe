@@ -1,10 +1,17 @@
 #!/bin/sh
 set -e
 
+umask 077
+
+MYSQLADMIN='/usr/bin/mysqladmin --defaults-extra-file=/etc/mysql/debian.cnf -u root -p'$MYSQL_ROOT_PASSWORD
+
+trap "$MYSQLADMIN shutdown" 0
+trap 'exit 2' 1 2 3 15
+
 if [ ! -d "/var/lib/mysql/mysql" ]; then
 	mysql_install_db --datadir="/var/lib/mysql"
 
-	TEMP_FILE=$(mktemp)
+	TEMP_FILE=$(gosu mysql mktemp)
 	cat <<-EOF > $TEMP_FILE
 	DELETE FROM mysql.user;
 	CREATE USER 'root'@'%' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD';
@@ -13,7 +20,7 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
 	FLUSH PRIVILEGES;
 	EOF
 
-	exec mysqld_safe --init-file=$TEMP_FILE
+	exec mysqld_safe --init-file=$TEMP_FILE & wait
 else
-	exec mysqld_safe
+	exec mysqld_safe & wait
 fi
